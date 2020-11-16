@@ -87,36 +87,40 @@ extension URLSession: NetworkSession {
     }
 }
 
-struct NetworkManager {
-    private let session: NetworkSession
+struct SWAPIService {
+    private let networkManager: NetworkManager
     
-    init(session: NetworkSession) {
-        self.session = session
+    init(networkManager: NetworkManager) {
+        self.networkManager = networkManager
     }
     
     func fetchPeople() -> AnyPublisher<Response, Error> {
-        makePublisher(
-            request: URLRequest(url: URL(string: "https://swapi.dev/api/people/1/")!)
+        networkManager.publisher(
+            for: URLRequest(url: URL(string: "https://swapi.dev/api/people/1/")!)
         )
     }
     
     func fetchPlanets() -> AnyPublisher<Response, Error> {
-        makePublisher(
-            request: URLRequest(url: URL(string: "https://swapi.dev/api/planets/1/")!)
+        networkManager.publisher(
+            for: URLRequest(url: URL(string: "https://swapi.dev/api/planets/1/")!)
         )
     }
     
     func fetchStarships() -> AnyPublisher<Response, Error> {
-        makePublisher(
-            request: URLRequest(url: URL(string: "https://swapi.dev/api/starships/1/")!)
+        networkManager.publisher(
+            for: URLRequest(url: URL(string: "https://swapi.dev/api/starships/1/")!)
         )
     }
     
     func fetchPenguins() -> AnyPublisher<Response, Error> {
-        makePublisher(
-            request: URLRequest(url: URL(string: "https://swapi.dev/api/penguins/1/")!)
+        networkManager.publisher(
+            for: URLRequest(url: URL(string: "https://swapi.dev/api/penguins/1/")!)
         )
     }
+}
+
+protocol NetworkManager {
+    func publisher<T: Decodable>(for request: URLRequest) -> AnyPublisher<T, Error>
 }
 
 private extension NetworkManager {
@@ -127,11 +131,24 @@ private extension NetworkManager {
     }
 }
 
+struct DefaultNetworkManager: NetworkManager {
+    private let session: NetworkSession
+    
+    init(session: NetworkSession) {
+        self.session = session
+    }
+    
+    func publisher<T: Decodable>(for request: URLRequest) -> AnyPublisher<T, Error> {
+        makePublisher(request: request)
+    }
+}
+
 let isMocked = true
 let session: NetworkSession = isMocked ? MockNetworkSession() : URLSession.shared
+let serivce: SWAPIService = SWAPIService(networkManager: DefaultNetworkManager(session: session))
 
 let fetchPeopleToken
-    = NetworkManager(session: session)
+    = serivce
     .fetchPeople()
     .sink { status in
         print("fetchPeopleToken: status received \(String(describing: status))")
@@ -140,7 +157,7 @@ let fetchPeopleToken
     }
 
 let fetchPlanetsToken
-    = NetworkManager(session: session)
+    = serivce
     .fetchPlanets()
     .sink { status in
         print("fetchPlanetsToken: status received \(String(describing: status))")
@@ -149,7 +166,7 @@ let fetchPlanetsToken
     }
 
 let fetchStarshipsToken
-    = NetworkManager(session: session)
+    = serivce
     .fetchStarships()
     .replaceError(with: Response(name: "fetchStarshipsToken failed with default response"))
     .sink { status in
@@ -159,7 +176,7 @@ let fetchStarshipsToken
     }
 
 let fetchPenguinsToken
-    = NetworkManager(session: session)
+    = serivce
     .fetchPenguins()
     .sink { status in
         print("fetchPenguinsToken: status received \(String(describing: status))")
